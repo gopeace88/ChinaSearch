@@ -1,8 +1,9 @@
+import type React from "react";
 import type { Question } from "../types";
 
 export function QuestionTree({ questions }: { questions: Question[] }) {
   const roots = questions.filter((q) => !q.parent_id);
-  const renderQ = (q: Question, depth = 0): JSX.Element => {
+  const renderQ = (q: Question, depth = 0): React.ReactElement => {
     const children = questions.filter((c) => c.parent_id === q.id);
     return (
       <div key={q.id} style={{ marginLeft: depth * 20, marginBottom: 4 }}>

@@ -3,8 +3,24 @@
 # local caches
 .cache/
 
-# case outputs can be large; keep tracked by default, but allow opting out later
-# (comment out if you want to track everything)
+# python
+__pycache__/
+*.pyc
+
+# node
+node_modules/
+
+# build output
+backend/static/
+
+# local tooling
+.omc/
+CS-extension/
+
+# runtime outputs
+cases/
+state/
+artifacts/
 
 # secrets
 .env

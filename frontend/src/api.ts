@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { SessionSummary, ResearchState } from "./types";
+import type { SessionSummary, ResearchState, StepResponse } from "./types";
 
 const api = axios.create({ baseURL: "/api" });
 
@@ -15,8 +15,12 @@ export const getSession = (id: number) =>
 export const getState = (id: number) =>
   api.get<ResearchState>(`/sessions/${id}/state`).then((r) => r.data);
 
-export const runSession = (id: number) =>
-  api.post(`/sessions/${id}/run`);
+// Background loop (not recommended for live UX)
+export const runSession = (id: number) => api.post(`/sessions/${id}/run`);
+
+// Live progress: one iteration
+export const stepSession = (id: number) =>
+  api.post<StepResponse>(`/sessions/${id}/step`).then((r) => r.data);
 
 export const generateReport = (id: number) =>
   api.post<{ report: string }>(`/sessions/${id}/report`).then((r) => r.data);

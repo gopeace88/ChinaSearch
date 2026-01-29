@@ -44,3 +44,33 @@ export interface ResearchState {
   internal_language: string;
   stop_reason: string | null;
 }
+
+export interface LLMTask {
+  llm: string;
+  action: string;
+  query?: string;
+  content?: string;
+  requires_vision?: boolean;
+  vision_job_type?: string | null;
+  priority?: string;
+  model_hint?: string | null;
+}
+
+export interface IterationResult {
+  updated_state: ResearchState;
+  reasoning: string;
+  tasks: LLMTask[];
+  should_stop: boolean;
+}
+
+export interface StepTaskResult {
+  llm_name: string;
+  text: string;
+  error: string | null;
+}
+
+export interface StepResponse {
+  iteration: IterationResult;
+  task_results: StepTaskResult[];
+  artifact_path: string | null;
+}
