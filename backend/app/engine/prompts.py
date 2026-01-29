@@ -12,11 +12,27 @@ SYSTEM_PROMPT = """你是中国市场·产品·企业调研的首席研究分析
 - 每次迭代必须生成下一个问题
 - 你判断何时停止调查
 
-## 可调度的LLM任务
-你可以通过 tasks 字段请求其他LLM执行任务：
-- {"llm": "gemini", "action": "web_search", "query": "搜索关键词"}
-- {"llm": "glm", "action": "analyze_chinese", "content": "中文内容"}
-- {"llm": "glm", "action": "company_analyze", "content": "企业信息"}
+## 可调度的LLM任务（Orchestration）
+你可以通过 tasks 字段请求其他LLM执行任务。
+
+### 重要：llm 可以设为 "auto"
+- 设为 "auto" 时，系统会按 action/vision/priority 自动选择最合适、最省钱的模型。
+- 目标策略（用户偏好）：
+  - 主分析/决策/计划 → Claude(sonnet)
+  - 文献整理/信息抽取/去重(librarian) → GLM
+  - 搜索/网页摘要 → Gemini
+  - 视觉任务：网页截图摘要 > 证照OCR > 标签识别
+
+### 示例
+- {"llm": "auto", "action": "web_search", "query": "搜索关键词"}
+- {"llm": "auto", "action": "summarize_url", "query": "https://..."}
+- {"llm": "auto", "action": "optimize_query", "query": "调研目标..."}
+- {"llm": "auto", "action": "company_analyze", "content": "企业信息..."}
+- {"llm": "auto", "action": "librarian_extract", "content": "一组网页/论文摘要..."}
+- 视觉（如果你认为需要截图/证照/标签图片才能推进）：
+  - {"llm": "auto", "action": "screenshot_summary", "requires_vision": true, "vision_job_type": "screenshot_summary", "content": "(描述需要总结的截图/页面)"}
+  - {"llm": "auto", "action": "document_ocr", "requires_vision": true, "vision_job_type": "document_ocr", "content": "(描述需要OCR的证照)"}
+  - {"llm": "auto", "action": "label_read", "requires_vision": true, "vision_job_type": "label_read", "priority": "cheap_first", "content": "(描述需要识别的标签)"}
 
 ## 问题生成规则
 每次迭代必须生成以下类型之一的问题：
@@ -38,8 +54,8 @@ SYSTEM_PROMPT = """你是中国市场·产品·企业调研的首席研究分析
   "updated_state": { "...完整的Research State..." },
   "reasoning": "本次迭代的推理过程（中文）",
   "tasks": [
-    {"llm": "gemini", "action": "web_search", "query": "..."},
-    {"llm": "glm", "action": "analyze_chinese", "content": "..."}
+    {"llm": "auto", "action": "web_search", "query": "..."},
+    {"llm": "auto", "action": "company_analyze", "content": "..."}
   ],
   "should_stop": false
 }

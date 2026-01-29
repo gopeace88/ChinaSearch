@@ -9,6 +9,7 @@ from app.llm.base import LLMResponse
 from app.llm.claude_cli import ClaudeCLI
 from app.llm.router import LLMRouter
 from app.schemas import ResearchState, IterationResult
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ Research State:
 
 请用韩语撰写完整报告。"""
 
-        response = await self.claude.ask(prompt)
+        response = await self.claude.ask(prompt, model=settings.claude_model_main)
         return response.text or "리포트 생성 실패"
 
     async def _call_claude_analyst(
@@ -107,7 +108,7 @@ Research State:
         message = build_iteration_message(state, new_results)
         full_prompt = f"{system}\n\n---\n\n{message}"
 
-        response = await self.claude.ask(full_prompt)
+        response = await self.claude.ask(full_prompt, model=settings.claude_model_main)
 
         if response.error:
             logger.error(f"Claude analyst error: {response.error}")

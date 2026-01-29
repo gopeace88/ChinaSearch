@@ -29,11 +29,33 @@ class Question(BaseModel):
 
 
 class LLMTask(BaseModel):
-    """A task to be dispatched to a specific LLM."""
-    llm: str  # claude | gemini | glm
-    action: str  # web_search | analyze_chinese | company_analyze | evidence_evaluate | generate_report
+    """A task to be dispatched to an LLM.
+
+    We support `llm="auto"` so the router can choose a cost-effective model
+    based on action + whether vision is required.
+    """
+
+    llm: str = "auto"  # auto | claude | gemini | glm
+
+    # High-level action. Keep it small + composable.
+    # text:
+    # - web_search, summarize_url
+    # - optimize_query, analyze_chinese, company_analyze
+    # - dedupe_evidence, librarian_extract
+    # orchestration:
+    # - analyze_iteration, merge_evidence, plan_next
+    # vision:
+    # - screenshot_summary, document_ocr, label_read
+    action: str
+
     query: str = ""
     content: str = ""
+
+    # Optional routing hints
+    requires_vision: bool = False
+    vision_job_type: str | None = None  # screenshot_summary | document_ocr | label_read
+    priority: str = "accurate_first"  # accurate_first | cheap_first
+    model_hint: str | None = None
 
 
 class ResearchState(BaseModel):
