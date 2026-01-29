@@ -34,6 +34,7 @@ export interface Question {
 export interface ResearchState {
   research_goal: string;
   decision_context: string;
+  user_notes: string[];
   assumptions: string[];
   current_hypotheses: string[];
   evidence_list: Evidence[];

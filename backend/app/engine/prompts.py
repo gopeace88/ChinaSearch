@@ -73,6 +73,11 @@ def build_iteration_message(
         state.model_dump_json(indent=2),
     ]
 
+    if state.user_notes:
+        parts.append("## 用户补充说明/问题（高优先级）")
+        for n in state.user_notes[-10:]:
+            parts.append(f"- {n}")
+
     if new_results:
         parts.append("## 本次迭代收集的新信息")
         for r in new_results:

@@ -177,6 +177,13 @@ export function ResearchView({ sessionId }: { sessionId: number }) {
         </div>
       )}
 
+      <h3>사용자 메모(최근)</h3>
+      {state.user_notes?.length ? (
+        <ul>{state.user_notes.slice(-10).map((n, i) => <li key={i}>{n}</li>)}</ul>
+      ) : (
+        <p style={{ color: "#666" }}>(없음)</p>
+      )}
+
       <h3>가설</h3>
       <ul>{state.current_hypotheses.map((h, i) => <li key={i}>{h}</li>)}</ul>
 

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/sessions", tags=["interventions"])
 
 
 class InterventionRequest(BaseModel):
-    action: str  # add_evidence | force_stop | skip_question
+    action: str  # add_evidence | add_note | force_stop | skip_question
     payload: dict
 
 
@@ -41,6 +41,14 @@ def intervene(session_id: int, req: InterventionRequest, db: Session = Depends(g
         state.evidence_list.append(ev)
         mgr.save_state(session_id, state)
         return {"message": "Evidence added", "evidence_id": ev.id}
+
+    elif req.action == "add_note":
+        note = (req.payload.get("text") or "").strip()
+        if not note:
+            raise HTTPException(400, "Missing payload.text")
+        state.user_notes.append(note)
+        mgr.save_state(session_id, state)
+        return {"message": "Note added"}
 
     elif req.action == "force_stop":
         state.stop_reason = req.payload.get("reason", "User forced stop")

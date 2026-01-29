@@ -61,6 +61,11 @@ class LLMTask(BaseModel):
 class ResearchState(BaseModel):
     research_goal: str
     decision_context: str = ""
+
+    # User-supplied notes/questions during the research. The orchestrator should
+    # always consider these as high priority context.
+    user_notes: list[str] = Field(default_factory=list)
+
     assumptions: list[str] = Field(default_factory=list)
     current_hypotheses: list[str] = Field(default_factory=list)
     evidence_list: list[Evidence] = Field(default_factory=list)
