@@ -1,8 +1,13 @@
-__pycache__/
-*.pyc
+# ChinaSearch
+
+# local caches
+.cache/
+
+# case outputs can be large; keep tracked by default, but allow opting out later
+# (comment out if you want to track everything)
+
+# secrets
 .env
-*.db
-node_modules/
-frontend/dist/
-backend/static/
-.venv/
+*.key
+*.pem
+
