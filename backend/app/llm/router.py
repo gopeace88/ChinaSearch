@@ -30,15 +30,9 @@ class LLMRouter:
 
     def _route_auto(self, task: LLMTask) -> tuple[str, str | None]:
         """Return (llm, model_hint)."""
-        # Vision routing (as requested: screenshot>document>label)
+        # Vision pipeline is disabled by policy (user will handle images in ChatGPT directly)
         if task.requires_vision or task.vision_job_type:
-            v = task.vision_job_type or task.action
-            if v in ("screenshot_summary", "document_ocr"):
-                return ("gemini", None)
-            if v == "label_read":
-                # cheap-first by default for label reads
-                model = task.model_hint or (settings.claude_model_cheap if task.priority == "cheap_first" else settings.claude_model_main)
-                return ("claude", model)
+            return ("claude", settings.claude_model_main)
 
         # Text routing
         if task.action in ("web_search", "summarize_url"):
@@ -74,9 +68,7 @@ class LLMRouter:
                 return await self.gemini.search(task.query)
             if task.action == "summarize_url":
                 return await self.gemini.summarize_url(task.query)
-            # Vision tasks (intent-only): we pass the request as text for now.
-            if task.action in ("screenshot_summary", "document_ocr", "label_read"):
-                return await self.gemini._call(task.content or task.query)
+            # Vision tasks are not supported in this pipeline.
 
         if llm == "glm":
             if task.action == "analyze_chinese":

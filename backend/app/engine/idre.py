@@ -5,6 +5,7 @@ import logging
 
 from app.engine.prompts import build_system_prompt, build_iteration_message
 from app.engine.state import StateManager
+from app.engine.artifacts import save_iteration_artifact
 from app.llm.base import LLMResponse
 from app.llm.claude_cli import ClaudeCLI
 from app.llm.router import LLMRouter
@@ -41,6 +42,13 @@ class IDREEngine:
         for task in iteration.tasks:
             result = await self.router.execute(task)
             results.append(result)
+
+        # Persist evidence/task outputs for reproducibility
+        it_no = iteration.updated_state.iteration_count or (state.iteration_count + 1)
+        try:
+            save_iteration_artifact(session_id=session_id, iteration=it_no, tasks=iteration.tasks, results=results)
+        except Exception as e:
+            logger.warning(f"Failed to save iteration artifact: {e}")
 
         # Store results for next iteration
         iteration._task_results = results  # type: ignore[attr-defined]

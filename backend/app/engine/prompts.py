@@ -29,10 +29,8 @@ SYSTEM_PROMPT = """你是中国市场·产品·企业调研的首席研究分析
 - {"llm": "auto", "action": "optimize_query", "query": "调研目标..."}
 - {"llm": "auto", "action": "company_analyze", "content": "企业信息..."}
 - {"llm": "auto", "action": "librarian_extract", "content": "一组网页/论文摘要..."}
-- 视觉（如果你认为需要截图/证照/标签图片才能推进）：
-  - {"llm": "auto", "action": "screenshot_summary", "requires_vision": true, "vision_job_type": "screenshot_summary", "content": "(描述需要总结的截图/页面)"}
-  - {"llm": "auto", "action": "document_ocr", "requires_vision": true, "vision_job_type": "document_ocr", "content": "(描述需要OCR的证照)"}
-  - {"llm": "auto", "action": "label_read", "requires_vision": true, "vision_job_type": "label_read", "priority": "cheap_first", "content": "(描述需要识别的标签)"}
+
+注意：视觉/图片相关输入由用户直接在 ChatGPT 中处理（本系统不做图片管线）。
 
 ## 问题生成规则
 每次迭代必须生成以下类型之一的问题：

@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     max_iterations: int = 20
 
+    # Where to store per-iteration artifacts (task outputs, evidence bundles, etc.)
+    artifacts_dir: str = "./artifacts"
+
     model_config = {"env_file": ".env"}
 
 
