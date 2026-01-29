@@ -46,7 +46,13 @@ class IDREEngine:
         # Persist evidence/task outputs for reproducibility
         it_no = iteration.updated_state.iteration_count or (state.iteration_count + 1)
         try:
-            save_iteration_artifact(session_id=session_id, iteration=it_no, tasks=iteration.tasks, results=results)
+            artifact_path = save_iteration_artifact(
+                session_id=session_id,
+                iteration=it_no,
+                tasks=iteration.tasks,
+                results=results,
+            )
+            iteration._artifact_path = str(artifact_path)  # type: ignore[attr-defined]
         except Exception as e:
             logger.warning(f"Failed to save iteration artifact: {e}")
 
