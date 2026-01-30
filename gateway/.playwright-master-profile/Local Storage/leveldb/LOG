@@ -1,6 +1,0 @@
-2026/01/30-20:02:50.082 5 Reusing MANIFEST /home/jhkim/.config/chromium/Profile 1/Local Storage/leveldb/MANIFEST-000001
-2026/01/30-20:02:50.082 5 Recovering log #3
-2026/01/30-20:02:50.083 5 Reusing old log /home/jhkim/.config/chromium/Profile 1/Local Storage/leveldb/000003.log 
-2026/01/30-20:05:08.374 5 Level-0 table #5: started
-2026/01/30-20:05:08.385 5 Level-0 table #5: 17378 bytes OK
-2026/01/30-20:05:08.388 5 Delete type=0 #3

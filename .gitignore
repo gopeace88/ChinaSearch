@@ -5,3 +5,9 @@ dist
 .env
 .env.local
 .ref/
+.playwright-sessions/
+gateway/.playwright-master-profile/
+gateway/sessions/
+gateway/gateway.db*
+gateway/.omc/
+.omc/
