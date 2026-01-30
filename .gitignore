@@ -1,29 +1,7 @@
-# ChinaSearch
-
-# local caches
-.cache/
-
-# python
-__pycache__/
-*.pyc
-
-# node
-node_modules/
-
-# build output
-backend/static/
-
-# local tooling
-.omc/
-CS-extension/
-
-# runtime outputs
-cases/
-state/
-artifacts/
-
-# secrets
+node_modules
+dist
+.DS_Store
+*.log
 .env
-*.key
-*.pem
-
+.env.local
+.ref/

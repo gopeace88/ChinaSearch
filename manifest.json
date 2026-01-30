@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "CS Deep Research",
+  "version": "1.0.0",
+  "description": "Deep research assistant for ChatGPT conversations",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://api.z.ai/*",
+    "https://api.search.brave.com/*",
+    "http://127.0.0.1:3456/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "src/content/index.ts"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "public/icons/icon-16.png",
+    "48": "public/icons/icon-48.png",
+    "128": "public/icons/icon-128.png"
+  },
+  "externally_connectable": {
+    "matches": ["http://localhost:*/*", "http://127.0.0.1:*/*"]
+  }
+}
