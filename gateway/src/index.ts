@@ -32,7 +32,63 @@ wss.on('connection', (ws) => {
         // Store progress for this session
         const { sessionId, ...progressData } = message.payload;
         sessionProgress.set(sessionId, progressData);
-        console.log(`[WS] Progress updated for session ${sessionId}:`, progressData.state);
+        console.log(`[WS] Progress updated for session ${sessionId}: state=${progressData.state} finalReport=${progressData.finalReport ? progressData.finalReport.length + ' chars' : 'null'}`);
+
+        // Sync Extension state to DB
+        if (progressData.state === 'IDLE') {
+          const dbSession = sessionManager.getSession(sessionId);
+          if (dbSession && dbSession.status === 'running') {
+            if (progressData.finalReport) {
+              sessionManager.saveReport(sessionId, progressData.finalReport);
+              console.log(`[WS] Session ${sessionId} completed with final report`);
+            } else {
+              sessionManager.updateSessionStatus(sessionId, 'completed');
+              console.log(`[WS] Session ${sessionId} completed`);
+            }
+          }
+        }
+        // Update round number in DB
+        if (progressData.round) {
+          sessionManager.updateRound(sessionId, progressData.round);
+        }
+
+        // Fire webhook if registered for this session
+        const session = sessionManager.getSession(sessionId);
+        if (session?.webhook_url) {
+          const logs = (progressData.progressLog || []).map((l: any) => ({
+            timestamp: l.time || Date.now(),
+            message: l.detail ? `${l.step} — ${l.detail}` : l.step || l.message || '',
+            level: l.level || 'info'
+          }));
+          const lastLog = logs[logs.length - 1];
+          const webhookPayload = {
+            event: 'progress_update',
+            sessionId,
+            state: progressData.state,
+            round: progressData.round,
+            maxRounds: progressData.maxRounds,
+            lastUpdatedMs: lastLog?.timestamp || Date.now(),
+            latestLog: lastLog || null,
+            session: {
+              id: session.id,
+              topic: session.topic,
+              maxRounds: session.max_rounds,
+              status: session.status,
+              currentRound: session.current_round,
+            }
+          };
+          // Fire-and-forget
+          fetch(session.webhook_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload),
+            signal: AbortSignal.timeout(5000),
+          }).then(res => {
+            console.log(`[Webhook] POST ${session.webhook_url} → ${res.status}`);
+          }).catch(err => {
+            console.warn(`[Webhook] Failed:`, err.message);
+          });
+        }
       }
     } catch (error) {
       console.error('[WS] Error handling message:', error);

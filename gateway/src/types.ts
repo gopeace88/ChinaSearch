@@ -8,12 +8,14 @@ export interface SessionRecord {
   updated_at: number;
   final_report?: string;
   error?: string;
+  webhook_url?: string;
 }
 
 export interface CreateSessionRequest {
   topic: string;
   maxRounds: number;
   files?: string[];  // file names from uploads
+  webhookUrl?: string;  // URL to POST progress updates to
 }
 
 export interface SessionResponse {

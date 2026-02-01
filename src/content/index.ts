@@ -1,6 +1,6 @@
-import { extractLatestReport, checkForNewMessage, markCurrentAsSeen, isStreaming } from "./chatgpt-reader";
+import { extractLatestReport, checkForNewMessage, markCurrentAsSeen, isStreaming, checkForContentGrowth } from "./chatgpt-reader";
 import { insertText, submitInput, startNewChat } from "./chatgpt-writer";
-import type { ExtMessage } from "../shared/messages";
+import type { ExtMessage, CheckContentGrowthPayload } from "../shared/messages";
 
 // Prevent duplicate injection
 if ((window as any).__csExtLoaded) {
@@ -56,6 +56,13 @@ chrome.runtime.onMessage.addListener(
       }
       case "SUBMIT_QUESTION": {
         sendResponse({ success: submitInput() });
+        break;
+      }
+      case "CHECK_CONTENT_GROWTH": {
+        const minLen = (message.payload as CheckContentGrowthPayload)?.minLength || 200;
+        const grown = checkForContentGrowth(minLen);
+        console.log("[CS-Extension] Content growth:", grown ? "YES (" + grown.length + " chars)" : "no");
+        sendResponse({ content: grown });
         break;
       }
       case "MARK_SEEN": {

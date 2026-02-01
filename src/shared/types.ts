@@ -26,6 +26,7 @@ export interface ResearchSession {
   analyses: AnalysisEntry[];
   progressLog: ProgressEntry[];  // live activity log
   finalReport?: string;          // ChatGPT final summary report
+  waitingForGrowth?: boolean;    // deep research content-growth monitoring mode
   createdAt: number;
 }
 

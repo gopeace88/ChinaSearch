@@ -140,6 +140,7 @@ onStateChange((session) => {
         topic: session.topic,
         progressLog: session.progressLog,
         analyses: session.analyses,
+        finalReport: session.finalReport || null,
       },
     }));
   }

@@ -152,6 +152,7 @@ export async function startSession(
   usage.glmCalls = 0;
   usage.claudeCalls = 0;
 
+  logProgress("❓ ChatGPT에 연구 질문 전송", topic.slice(0, 200));
   notify();
   startPolling(settings);
 }
@@ -232,6 +233,12 @@ export async function stopSession() {
     });
     logProgress("📝 최종 요약 요청", "ChatGPT에 전체 대화 기반 최종 보고서 작성 요청");
 
+    // Mark current messages as seen so we detect the final report as a NEW message
+    await sendToTab({ type: "MARK_SEEN" });
+
+    // Keep service worker alive while waiting for final report
+    startKeepAlive();
+
     // Transition to WAITING_FINAL_REPORT state instead of IDLE
     transition("WAITING_FINAL_REPORT");
     // Keep polling to capture the final report
@@ -254,6 +261,27 @@ function startPolling(settings: { glmApiKey: string; claudeApiKey: string; maxRo
     try {
       // Handle WAITING_FINAL_REPORT state
       if (currentSession.state === "WAITING_FINAL_REPORT") {
+        // Timeout: if waiting too long (3 min), fall back to internal report
+        const waitStart = (currentSession as any)._waitFinalReportSince || Date.now();
+        if (!(currentSession as any)._waitFinalReportSince) {
+          (currentSession as any)._waitFinalReportSince = Date.now();
+        }
+        const elapsed = Date.now() - waitStart;
+        if (elapsed > 180_000) {
+          console.log("[CS-Extension] Final report timeout, using internal report");
+          logProgress("⚠️ 최종 보고서 시간 초과", "내부 보고서로 대체합니다");
+          const internalReport = generateFinalReport();
+          currentSession.finalReport = internalReport;
+          transition("IDLE");
+          if (pollTimer) clearInterval(pollTimer);
+          pollTimer = null;
+          stopKeepAlive();
+          notify();
+          currentSession = null;
+          chatGptTabId = null;
+          return;
+        }
+
         // Check if ChatGPT is still streaming
         const statusRes = await sendToTab({ type: "CHECK_RESEARCH_STATUS" });
         if (statusRes?.inProgress) {
@@ -299,6 +327,22 @@ function startPolling(settings: { glmApiKey: string; claudeApiKey: string; maxRo
       // Handle WAITING_RESEARCH state
       if (currentSession.state !== "WAITING_RESEARCH") return;
 
+      // If waiting for content growth (deep research mode), check if content has grown
+      if (currentSession.waitingForGrowth) {
+        const statusRes = await sendToTab({ type: "CHECK_RESEARCH_STATUS" });
+        if (statusRes?.inProgress) {
+          console.log("[CS-Extension] Deep research still in progress, waiting...");
+          return;
+        }
+        const growthRes = await sendToTab({ type: "CHECK_CONTENT_GROWTH", payload: { minLength: 200 } });
+        if (!growthRes?.content) return; // Not grown enough yet
+        const grownContent = growthRes.content as string;
+        console.log("[CS-Extension] Content growth detected, length:", grownContent.length);
+        currentSession.waitingForGrowth = false;
+        await processReport(grownContent, "심층리서치", settings);
+        return;
+      }
+
       // Check if ChatGPT is still streaming
       const statusRes = await sendToTab({ type: "CHECK_RESEARCH_STATUS" });
       if (statusRes?.inProgress) {
@@ -312,77 +356,105 @@ function startPolling(settings: { glmApiKey: string; claudeApiKey: string; maxRo
 
       const reportContent = msgRes.content as string;
       console.log("[CS-Extension] New message detected, length:", reportContent.length);
-      logProgress("📥 보고서 수신", `${reportContent.length}자 수신 완료`);
 
-      // Save report
-      currentSession.reports.push({
-        round: currentSession.round,
-        content: reportContent,
-        extractedAt: Date.now(),
-      });
-
-      // Analyze — keep service worker alive during long API calls
-      transition("ANALYZING");
-      startKeepAlive();
-      let analysis: AnalysisEntry;
-      try {
-        analysis = await analyzeReport(reportContent, settings);
-      } finally {
-        stopKeepAlive();
-      }
-      // Session may have been cancelled during async analysis
-      if (!currentSession) return;
-      currentSession.analyses.push(analysis);
-
-      // Build enriched follow-up: question + external findings for ChatGPT context
-      transition("INSERTING_QUESTION");
-      const synthesisSummary = analysis.claudeAnalysis
-        .replace(/### Follow-up Question[\s\S]*$/, "")  // remove question part
-        .trim()
-        .slice(0, 2000);
-      const searchSummary = analysis.searchResults.slice(0, 1000);
-
-      let enrichedQuestion = analysis.followUpQuestion;
-      if (synthesisSummary || searchSummary) {
-        enrichedQuestion += `\n\n[참고: 외부 검증 결과]\n`;
-        if (searchSummary && searchSummary !== "(검색 결과 없음)") {
-          enrichedQuestion += `${searchSummary}\n\n`;
-        }
-        if (synthesisSummary) {
-          enrichedQuestion += `[분석 요약]\n${synthesisSummary}\n\n`;
-        }
-        enrichedQuestion += `위 외부 검증 정보를 참고하여 더 정확하고 깊이 있는 연구를 진행해주세요.`;
+      // Skip very short responses — likely deep research initial acknowledgment
+      // (e.g. "I'll research this for you" before actual research starts)
+      const MIN_REPORT_LENGTH = 200;
+      if (reportContent.length < MIN_REPORT_LENGTH) {
+        console.log("[CS-Extension] Response too short (" + reportContent.length + " chars), likely not a real report. Will monitor for content growth.");
+        logProgress("⏳ 짧은 응답 감지", `${reportContent.length}자 — 심층리서치 진행 중일 수 있음, 내용 증가 대기`);
+        // Switch to content-growth monitoring mode
+        if (!currentSession) return;
+        currentSession.waitingForGrowth = true;
+        return;
       }
 
-      // Save enriched question for the record
-      analysis.enrichedQuestion = enrichedQuestion;
-
-      await sendToTab({
-        type: "INSERT_QUESTION",
-        payload: {
-          question: enrichedQuestion,
-          autoSubmit: currentSession.autoMode,
-        },
-      });
-
-      // Always advance to next round after inserting follow-up
-      // autoMode only controls whether the question is auto-submitted (Enter key)
-      currentSession.round++;
-      if (currentSession.round > currentSession.maxRounds) {
-        stopSession();
-      } else {
-        transition("WAITING_RESEARCH");
-      }
+      await processReport(reportContent, "", settings);
     } catch (err) {
       console.error("[CS-Extension] Poll error:", err);
     }
   }, POLL_INTERVAL_MS);
 }
 
+/**
+ * Common logic after receiving a report: save → analyze → build enriched question → insert → advance round.
+ */
+async function processReport(
+  reportContent: string,
+  logLabel: string,
+  settings: { glmApiKey: string; claudeApiKey: string; maxRounds: number; autoMode: boolean }
+): Promise<void> {
+  if (!currentSession) return;
+
+  logProgress("📥 보고서 수신" + (logLabel ? ` (${logLabel})` : ""), `${reportContent.length}자 수신 완료`);
+
+  currentSession.reports.push({
+    round: currentSession.round,
+    content: reportContent,
+    extractedAt: Date.now(),
+  });
+
+  transition("ANALYZING");
+  startKeepAlive();
+  let analysis: AnalysisEntry;
+  try {
+    analysis = await analyzeReport(reportContent, settings);
+  } finally {
+    stopKeepAlive();
+  }
+  if (!currentSession) return;
+  currentSession.analyses.push(analysis);
+
+  transition("INSERTING_QUESTION");
+  const synthesisSummary = analysis.claudeAnalysis
+    .replace(/### Follow-up Question[\s\S]*$/, "")
+    .trim()
+    .slice(0, 2000);
+  const searchSummary = analysis.searchResults.slice(0, 1000);
+
+  let enrichedQuestion = analysis.followUpQuestion;
+  if (synthesisSummary || searchSummary) {
+    enrichedQuestion += `\n\n[참고: 외부 검증 결과]\n`;
+    if (searchSummary && searchSummary !== "(검색 결과 없음)") {
+      enrichedQuestion += `${searchSummary}\n\n`;
+    }
+    if (synthesisSummary) {
+      enrichedQuestion += `[분석 요약]\n${synthesisSummary}\n\n`;
+    }
+    enrichedQuestion += `위 외부 검증 정보를 참고하여 더 정확하고 깊이 있는 연구를 진행해주세요.`;
+  }
+
+  analysis.enrichedQuestion = enrichedQuestion;
+
+  logProgress("❓ ChatGPT에 후속 질문 전송", analysis.followUpQuestion.slice(0, 200));
+
+  await sendToTab({
+    type: "INSERT_QUESTION",
+    payload: { question: enrichedQuestion, autoSubmit: currentSession.autoMode },
+  });
+
+  currentSession.round++;
+  if (currentSession.round > currentSession.maxRounds) {
+    stopSession();
+  } else {
+    transition("WAITING_RESEARCH");
+  }
+}
+
 async function analyzeReport(
   report: string,
   settings: { glmApiKey: string; claudeApiKey: string }
 ): Promise<AnalysisEntry> {
+  // Snapshot session data upfront — currentSession can become null during async ops
+  if (!currentSession) throw new Error("Session cancelled before analysis");
+  const sessionSnapshot = {
+    id: currentSession.id,
+    topic: currentSession.topic,
+    round: currentSession.round,
+    maxRounds: currentSession.maxRounds,
+    analyses: [...currentSession.analyses],
+  };
+
   console.log("[CS-BG] analyzeReport START, report length:", report.length);
   logProgress("🔍 핵심 사실 추출 중", "GLM으로 보고서에서 검증 가능한 사실 추출...");
 
@@ -416,12 +488,12 @@ async function analyzeReport(
   logProgress("🧠 종합 분석 준비", "Claude에게 보고서 + 검색 결과 전달...");
 
   // Build previous rounds summary for context
-  const prevRounds = currentSession!.analyses.map((a) =>
+  const prevRounds = sessionSnapshot.analyses.map((a) =>
     `Round ${a.round}: "${a.followUpQuestion}"`
   ).join("\n");
 
-  const round = currentSession!.round;
-  const maxRounds = currentSession!.maxRounds;
+  const round = sessionSnapshot.round;
+  const maxRounds = sessionSnapshot.maxRounds;
   const progressRatio = round / maxRounds; // 0.2 ~ 1.0
 
   // Phase guidance based on research progress
@@ -439,7 +511,7 @@ async function analyzeReport(
   const systemPrompt = `You are a research synthesis coordinator investigating a specific topic. Your session persists across rounds — you remember all previous analyses.
 
 ## CORE TOPIC (NEVER DRIFT FROM THIS)
-"${currentSession!.topic}"
+"${sessionSnapshot.topic}"
 
 ## Your Role
 - Synthesize each round's ChatGPT report with external evidence (Brave search results)
@@ -491,7 +563,7 @@ Produce your synthesis and follow-up question now.`;
 
   logProgress("🧠 Claude 종합 분석 중", "연구 결과 종합 및 후속 질문 생성...");
   let claudeResult: { text: string; error?: string };
-  claudeResult = await callClaude(claudePrompt, "", systemPrompt, `cs-${currentSession!.id}`);
+  claudeResult = await callClaude(claudePrompt, "", systemPrompt, `cs-${sessionSnapshot.id}`);
   usage.claudeCalls++;
   notify();
   // If Claude proxy fails, fall back to GLM
@@ -528,7 +600,7 @@ Produce your synthesis and follow-up question now.`;
   }
 
   return {
-    round: currentSession!.round,
+    round: sessionSnapshot.round,
     glmClaims: extractResult.text,
     searchResults: searchContext || "(검색 결과 없음)",
     claudeAnalysis: synthesisOnward,

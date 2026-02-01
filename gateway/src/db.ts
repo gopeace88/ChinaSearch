@@ -27,6 +27,13 @@ db.exec(`
   );
 `);
 
+// Add webhook_url column if not exists (migration)
+try {
+  db.exec(`ALTER TABLE sessions ADD COLUMN webhook_url TEXT`);
+} catch {
+  // Column already exists
+}
+
 // Ensure sessions directory exists
 const sessionsDir = join(__dirname, '..', 'sessions');
 mkdirSync(sessionsDir, { recursive: true });

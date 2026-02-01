@@ -11,6 +11,7 @@ export type MessageType =
   | "SUBMIT_QUESTION"
   | "CHECK_RESEARCH_STATUS"
   | "CHECK_NEW_MESSAGE"
+  | "CHECK_CONTENT_GROWTH"
   | "MARK_SEEN"
   | "NEW_CHAT"
   | "PING"
@@ -43,6 +44,10 @@ export interface InsertQuestionPayload {
 
 export interface ReportExtractedPayload {
   content: string;
+}
+
+export interface CheckContentGrowthPayload {
+  minLength: number;
 }
 
 export interface StateUpdatePayload {

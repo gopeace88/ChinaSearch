@@ -5,6 +5,21 @@ import db, { sessionsDir } from '../db.js';
 import type { SessionRecord, CreateSessionRequest } from '../types.js';
 import { PlaywrightController } from './playwright-controller.js';
 
+// Webhook delivery: fire-and-forget HTTP POST
+async function sendWebhook(url: string, payload: any): Promise<void> {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000),
+    });
+    console.log(`[Webhook] POST ${url} → ${res.status}`);
+  } catch (err) {
+    console.warn(`[Webhook] Failed to POST ${url}:`, err);
+  }
+}
+
 export class SessionManager {
   private controllers: Map<string, PlaywrightController> = new Map();
 
@@ -19,7 +34,8 @@ export class SessionManager {
       status: 'running',
       current_round: 0,
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      webhook_url: data.webhookUrl,
     };
 
     // Create session directory structure
@@ -30,8 +46,8 @@ export class SessionManager {
 
     // Save to database
     const stmt = db.prepare(`
-      INSERT INTO sessions (id, topic, max_rounds, status, current_round, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions (id, topic, max_rounds, status, current_round, created_at, updated_at, webhook_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -41,7 +57,8 @@ export class SessionManager {
       session.status,
       session.current_round,
       session.created_at,
-      session.updated_at
+      session.updated_at,
+      session.webhook_url || null
     );
 
     // Save initial metadata
@@ -97,7 +114,8 @@ export class SessionManager {
       created_at: row.created_at,
       updated_at: row.updated_at,
       final_report: row.final_report || undefined,
-      error: row.error || undefined
+      error: row.error || undefined,
+      webhook_url: row.webhook_url || undefined
     };
   }
 
@@ -124,7 +142,8 @@ export class SessionManager {
       created_at: row.created_at,
       updated_at: row.updated_at,
       final_report: row.final_report || undefined,
-      error: row.error || undefined
+      error: row.error || undefined,
+      webhook_url: row.webhook_url || undefined
     }));
   }
 
@@ -204,15 +223,18 @@ export class SessionManager {
 
     if (wsProgress) {
       // Format WebSocket progress data for frontend
+      const logs = (wsProgress.progressLog || []).map((l: any) => ({
+        timestamp: l.time || Date.now(),
+        message: l.detail ? `${l.step} — ${l.detail}` : l.step || l.message || '',
+        level: l.level || 'info'
+      }));
+      const lastLog = logs[logs.length - 1];
       return {
         state: wsProgress.state,
         round: wsProgress.round,
         maxRounds: wsProgress.maxRounds,
-        logs: (wsProgress.progressLog || []).map((l: any) => ({
-          timestamp: l.time || Date.now(),
-          message: l.detail ? `${l.step} — ${l.detail}` : l.step || l.message || '',
-          level: l.level || 'info'
-        })),
+        lastUpdatedMs: lastLog?.timestamp || Date.now(),
+        logs,
         rounds: wsProgress.analyses?.map((a: any, idx: number) => ({
           round: idx + 1,
           question: a.followUpQuestion || '',
@@ -231,7 +253,7 @@ export class SessionManager {
     }
 
     // Return empty progress instead of null to avoid frontend errors
-    return { state: 'WAITING_RESEARCH', round: 0, maxRounds: 0, logs: [], rounds: [] };
+    return { state: 'WAITING_RESEARCH', round: 0, maxRounds: 0, lastUpdatedMs: Date.now(), logs: [], rounds: [] };
   }
 
   async closeSession(id: string): Promise<void> {
